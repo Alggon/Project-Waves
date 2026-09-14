@@ -1,0 +1,118 @@
+#include "/Engine/Public/Platform.ush"
+
+RWTexture2D<float4> OutputTexture;
+RWTexture2D<float3> OutputNormal;
+int WaveCount;
+float Time;
+float WorldSize;
+int TextureRes;
+float FoamThreshold;
+float FoamDecay;
+float DeltaTime;
+
+struct FWaveParams
+{
+    float2 Direction;
+    float Amplitude;
+    float Omega;
+    float Phi;
+    float Q;
+    float2 Padding;
+};
+
+StructuredBuffer<FWaveParams> Waves;
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    // Checking texture res is a multiple of 8
+    if (DispatchThreadId.x >= (uint) TextureRes || DispatchThreadId.y >= (uint) TextureRes)
+    {
+        return;
+    }
+    
+    // Checking waves number so the shader doesn't run with no wave
+    uint Num = 0;
+    uint Stride = 0;
+    
+    Waves.GetDimensions(Num, Stride);
+    
+    if (Num <= 0)
+    {
+        return;
+    }
+    
+    float2 UV = (DispatchThreadId.xy + 0.5) / (float) TextureRes;
+    float2 WorldPos = (UV - 0.5) * WorldSize;
+    
+    float3 displacement = float3(0, 0, 0);
+    
+    float3 Tx = float3(1.0, 0.0, 0.0);
+    float3 Ty = float3(0.0, 1.0, 0.0);
+    
+    for (int i = 0; i < WaveCount; i++)
+    {
+        float2 D = Waves[i].Direction;
+        float A = Waves[i].Amplitude;
+        float Omega = Waves[i].Omega;
+        float Q = Waves[i].Q;
+        
+        if (Omega <= 0.0001 || Omega > 1.0 || A <= 0.0001 || A > 200.0)
+        {
+            continue;
+        }
+        
+        float dotProduct = dot(D, WorldPos);
+        
+        float theta = Omega * dotProduct - Waves[i].Phi * Time;
+
+        float cosTheta = cos(theta);
+        float sinTheta = sin(theta);
+
+        displacement.x -= Q * A * D.x * sinTheta;
+        displacement.y -= Q * A * D.y * sinTheta;
+        displacement.z += A * cosTheta;
+
+        float KA = Omega * A;
+        
+        Tx.x -= Q * A * D.x * D.x * Omega * cosTheta;
+        Tx.y -= Q * A * D.x * D.y * Omega * cosTheta;
+        Tx.z -= D.x * KA * sinTheta;
+
+        Ty.x -= Q * A * D.y * D.x * Omega * cosTheta;
+        Ty.y -= Q * A * D.y * D.y * Omega * cosTheta;
+        Ty.z -= D.y * KA * sinTheta;
+    }
+    
+    float J = (Tx.x * Ty.y) - (Tx.y * Ty.x);
+    
+    float oldFoam = OutputTexture[DispatchThreadId.xy].a;
+    float foamGen = saturate(FoamThreshold - J);
+    float decayFactor = exp(-FoamDecay * DeltaTime);
+    float newFoam = saturate(max(oldFoam * decayFactor, foamGen));
+    
+    float3 Normal = normalize(cross(Tx, Ty));
+    
+    // Security (used when length and displacement was causing a GPU crash)
+    float DisplacementLength = length(displacement);
+    
+    if (DisplacementLength > 200.0 || any(isnan(displacement)) || any(isinf(displacement)))
+    {
+        displacement = float3(1, 0, 0);
+    }
+    
+    if (any(isnan(Normal)) || any(isinf(Normal)))
+    {
+        Normal = float3(0, 0, 1);
+    }
+    
+    if (isnan(newFoam) || isinf(newFoam))
+    {
+        newFoam = 0.0;
+    }
+    //
+    
+    OutputTexture[DispatchThreadId.xy] = float4(displacement, newFoam);
+    
+    OutputNormal[DispatchThreadId.xy] = Normal;
+}

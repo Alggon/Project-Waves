@@ -1,0 +1,60 @@
+#include "/Engine/Public/Platform.ush"
+
+Texture2D<float2> PrevBuffer;
+RWTexture2D<float2> NextBuffer;
+
+int TextureRes;
+float DeltaTime;
+float Damping;
+float WaveSpeed;
+
+float2 DropPos; // UV ; (-1,-1) si pas de goutte cette frame
+float DropRadius;
+float DropStrength;
+float DropAge;
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 Id : SV_DispatchThreadID)
+{
+    if (Id.x >= (uint) TextureRes || Id.y >= (uint) TextureRes)
+        return;
+
+    int2 Coord = int2(Id.xy);
+    int Res = TextureRes;
+
+    float h = PrevBuffer.Load(int3(Coord, 0)).r;
+    float v = PrevBuffer.Load(int3(Coord, 0)).g;
+    float hL = PrevBuffer.Load(int3(clamp(Coord.x - 1, 0, Res - 1), Coord.y, 0)).r;
+    float hR = PrevBuffer.Load(int3(clamp(Coord.x + 1, 0, Res - 1), Coord.y, 0)).r;
+    float hD = PrevBuffer.Load(int3(Coord.x, clamp(Coord.y - 1, 0, Res - 1), 0)).r;
+    float hU = PrevBuffer.Load(int3(Coord.x, clamp(Coord.y + 1, 0, Res - 1), 0)).r;
+    float hNE = PrevBuffer.Load(int3(clamp(Coord.x + 1, 0, Res - 1), clamp(Coord.y + 1, 0, Res - 1), 0)).r;
+    float hNW = PrevBuffer.Load(int3(clamp(Coord.x - 1, 0, Res - 1), clamp(Coord.y + 1, 0, Res - 1), 0)).r;
+    float hSE = PrevBuffer.Load(int3(clamp(Coord.x + 1, 0, Res - 1), clamp(Coord.y - 1, 0, Res - 1), 0)).r;
+    float hSW = PrevBuffer.Load(int3(clamp(Coord.x - 1, 0, Res - 1), clamp(Coord.y - 1, 0, Res - 1), 0)).r;
+
+    float Laplacian = (4.0 * (hL + hR + hD + hU) + (hNE + hNW + hSE + hSW) - 20.0 * h) / 6.0;
+    
+    v += Laplacian * WaveSpeed * WaveSpeed * DeltaTime;
+    v *= Damping; // <1.0, sinon la simulation diverge à l'infini
+    h += v * DeltaTime;
+
+    float2 UV = (Id.xy + 0.5) / TextureRes;
+    
+    if (DropPos.x >= 0.0)
+    {
+        float Dist = distance(UV, DropPos);
+        if (Dist < DropRadius)
+        {
+            float Dist = distance(UV, DropPos);
+            
+            if (Dist < DropRadius)
+            {
+                float Falloff = 1.0 - saturate(Dist / DropRadius);
+                h += DropStrength * Falloff * Falloff;
+            }
+        }
+    }
+
+    NextBuffer[Id.xy] = float2(h, v);
+}
