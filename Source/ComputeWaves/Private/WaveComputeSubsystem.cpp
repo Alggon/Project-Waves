@@ -18,9 +18,17 @@ void UWaveComputeSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	OutputNormal = Cast<UTextureRenderTarget2D>(GetDefault<UWaveComputingSettings>()->OutputNormal.TryLoad());
 	CachedResolution = GetDefault<UWaveComputingSettings>()->CachedResolution;
 	CachedWorldSize = GetDefault<UWaveComputingSettings>()->CachedWorldSize;
+
+	SecondOutputRenderTarget = Cast<UTextureRenderTarget2D>(GetDefault<UWaveComputingSettings>()->SecondOutputRenderTarget.TryLoad());
+	SecondOutputNormal = Cast<UTextureRenderTarget2D>(GetDefault<UWaveComputingSettings>()->SecondOutputNormal.TryLoad());
+	SecondWaveCount = GetDefault<UWaveComputingSettings>()->SecondWaveCount;
+	SecondCachedResolution = GetDefault<UWaveComputingSettings>()->SecondCachedResolution;
+	SecondCachedWorldSize = GetDefault<UWaveComputingSettings>()->SecondCachedWorldSize;
+
 	FoamThreshold = GetDefault<UWaveComputingSettings>()->FoamThreshold;
 	FoamDecay = GetDefault<UWaveComputingSettings>()->FoamDecay;
 	Waves = GetDefault<UWaveComputingSettings>()->Waves;
+
 }
 
 void UWaveComputeSubsystem::Deinitialize()
@@ -48,9 +56,17 @@ void UWaveComputeSubsystem::Tick(float DeltaTime)
 	FTextureRenderTargetResource* RTNormalResource = OutputNormal->GameThread_GetRenderTargetResource();
 
 	const int32 WaveCount = Waves.Num();
-	const float CurrentTime = GetWorld()->GetTimeSeconds();
 	const float WorldSize = CachedWorldSize;
 	const int32 Resolution = CachedResolution;
+
+	FTextureRenderTargetResource* SecondRTResource = SecondOutputRenderTarget->GameThread_GetRenderTargetResource();
+	FTextureRenderTargetResource* SecondRTNormalResource = SecondOutputNormal->GameThread_GetRenderTargetResource();
+
+	const int32 TempSecondWaveCount = SecondWaveCount;
+	const float SecondWorldSize = SecondCachedWorldSize;
+	const int32 SecondResolution = SecondCachedResolution;
+
+	const float CurrentTime = GetWorld()->GetTimeSeconds();
 	const float ConstDeltaTime = GetWorld()->GetDeltaSeconds();
 
 	const float TempFoamThreshold = FoamThreshold;
@@ -72,21 +88,31 @@ void UWaveComputeSubsystem::Tick(float DeltaTime)
 		}
 
 		ENQUEUE_RENDER_COMMAND(WaveComputeDispatch)(
-			[RTResource, RTNormalResource, WaveCount, CurrentTime, WorldSize, Resolution, ConstDeltaTime, bShouldRequestCopy, TempFoamThreshold, TempFoamDecay, TempWaves, ReadbackPtr, this](FRHICommandListImmediate& RHICmdList)
+			[RTResource, RTNormalResource, WaveCount, WorldSize, Resolution, SecondRTResource, SecondRTNormalResource, TempSecondWaveCount, SecondWorldSize, SecondResolution, CurrentTime,ConstDeltaTime, bShouldRequestCopy, TempFoamThreshold, TempFoamDecay, TempWaves, ReadbackPtr, this](FRHICommandListImmediate& RHICmdList)
 			{
 				FRDGBuilder GraphBuilder(RHICmdList);
 
 				FRDGTextureRef ExternalTex = RegisterExternalTexture(GraphBuilder, RTResource->GetRenderTargetTexture(), TEXT("WaveOutputExternal"));
 				FRDGTextureRef ExternalNormalTex = RegisterExternalTexture(GraphBuilder, RTNormalResource->GetRenderTargetTexture(), TEXT("WaveOutputExternal"));
 
+				FRDGTextureRef SecondExternalTex = RegisterExternalTexture(GraphBuilder, SecondRTResource->GetRenderTargetTexture(), TEXT("WaveOutputExternal"));
+				FRDGTextureRef SecondExternalNormalTex = RegisterExternalTexture(GraphBuilder, SecondRTNormalResource->GetRenderTargetTexture(), TEXT("WaveOutputExternal"));
+
 				FWaveComputeCS::FParameters* Params = GraphBuilder.AllocParameters<FWaveComputeCS::FParameters>();
 
 				Params->OutputTexture = GraphBuilder.CreateUAV(ExternalTex);
 				Params->OutputNormal = GraphBuilder.CreateUAV(ExternalNormalTex);
 				Params->WaveCount = WaveCount;
-				Params->Time = CurrentTime;
 				Params->WorldSize = WorldSize;
 				Params->TextureRes = Resolution;
+
+				Params->SecondOutputTexture = GraphBuilder.CreateUAV(SecondExternalTex);
+				Params->SecondOutputNormal = GraphBuilder.CreateUAV(SecondExternalNormalTex);
+				Params->SecondWaveCount = TempSecondWaveCount;
+				Params->SecondWorldSize = SecondWorldSize;
+				Params->SecondTextureRes = SecondResolution;
+
+				Params->Time = CurrentTime;
 				Params->DeltaTime = ConstDeltaTime;
 				Params->FoamThreshold = TempFoamThreshold;
 				Params->FoamDecay = TempFoamDecay;

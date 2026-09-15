@@ -3,9 +3,14 @@
 RWTexture2D<float4> OutputTexture;
 RWTexture2D<float3> OutputNormal;
 int WaveCount;
-float Time;
 float WorldSize;
 int TextureRes;
+RWTexture2D<float4> SecondOutputTexture;
+RWTexture2D<float3> SecondOutputNormal;
+int SecondWaveCount;
+float SecondWorldSize;
+int SecondTextureRes;
+float Time;
 float FoamThreshold;
 float FoamDecay;
 float DeltaTime;
@@ -22,35 +27,13 @@ struct FWaveParams
 
 StructuredBuffer<FWaveParams> Waves;
 
-[numthreads(8, 8, 1)]
-void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+void ComputeWaves(float2 WorldPos, int Count, out float3 OutDisplacement, out float3 OutNormal)
 {
-    // Checking texture res is a multiple of 8
-    if (DispatchThreadId.x >= (uint) TextureRes || DispatchThreadId.y >= (uint) TextureRes)
-    {
-        return;
-    }
-    
-    // Checking waves number so the shader doesn't run with no wave
-    uint Num = 0;
-    uint Stride = 0;
-    
-    Waves.GetDimensions(Num, Stride);
-    
-    if (Num <= 0)
-    {
-        return;
-    }
-    
-    float2 UV = (DispatchThreadId.xy + 0.5) / (float) TextureRes;
-    float2 WorldPos = (UV - 0.5) * WorldSize;
-    
     float3 displacement = float3(0, 0, 0);
-    
     float3 Tx = float3(1.0, 0.0, 0.0);
     float3 Ty = float3(0.0, 1.0, 0.0);
-    
-    for (int i = 0; i < WaveCount; i++)
+        
+    for (int i = 0; i < Count; i++)
     {
         float2 D = Waves[i].Direction;
         float A = Waves[i].Amplitude;
@@ -84,35 +67,79 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
         Ty.z -= D.y * KA * sinTheta;
     }
     
-    float J = (Tx.x * Ty.y) - (Tx.y * Ty.x);
+    //float J = (Tx.x * Ty.y) - (Tx.y * Ty.x);
     
-    float oldFoam = OutputTexture[DispatchThreadId.xy].a;
-    float foamGen = saturate(FoamThreshold - J);
-    float decayFactor = exp(-FoamDecay * DeltaTime);
-    float newFoam = saturate(max(oldFoam * decayFactor, foamGen));
+    //float oldFoam = OutputTexture[DispatchThreadId.xy].a;
+    //float foamGen = saturate(FoamThreshold - J);
+    //float decayFactor = exp(-FoamDecay * DeltaTime);
+    //float newFoam = saturate(max(oldFoam * decayFactor, foamGen));
     
     float3 Normal = normalize(cross(Tx, Ty));
     
     // Security (used when length and displacement was causing a GPU crash)
-    float DisplacementLength = length(displacement);
+    //float DisplacementLength = length(displacement);
     
-    if (DisplacementLength > 200.0 || any(isnan(displacement)) || any(isinf(displacement)))
-    {
-        displacement = float3(1, 0, 0);
-    }
+    //if (DisplacementLength > 200.0 || any(isnan(displacement)) || any(isinf(displacement)))
+    //{
+    //    displacement = float3(1, 0, 0);
+    //}
     
-    if (any(isnan(Normal)) || any(isinf(Normal)))
-    {
-        Normal = float3(0, 0, 1);
-    }
+    //if (any(isnan(Normal)) || any(isinf(Normal)))
+    //{
+    //    Normal = float3(0, 0, 1);
+    //}
     
-    if (isnan(newFoam) || isinf(newFoam))
-    {
-        newFoam = 0.0;
-    }
+    //if (isnan(newFoam) || isinf(newFoam))
+    //{
+    //    newFoam = 0.0;
+    //}
     //
     
-    OutputTexture[DispatchThreadId.xy] = float4(displacement, newFoam);
+    OutDisplacement = displacement;
+    OutNormal = Normal;
+}
+
+[numthreads(8, 8, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+    // Checking texture res is a multiple of 8
+    if (DispatchThreadId.x >= (uint) TextureRes || DispatchThreadId.y >= (uint) TextureRes)
+    {
+        return;
+    }
     
-    OutputNormal[DispatchThreadId.xy] = Normal;
+    // Checking waves number so the shader doesn't run with no wave
+    uint Num = 0;
+    uint Stride = 0;
+    
+    Waves.GetDimensions(Num, Stride);
+    
+    if (Num <= 0)
+    {
+        return;
+    }
+    
+    // Main waves
+    float2 UV = (DispatchThreadId.xy + 0.5) / (float) TextureRes;
+    float2 WorldPos = (UV - 0.5) * WorldSize;
+    
+    float3 displacement = float3(0, 0, 0);
+    float3 normal = float3(0, 0, 1);
+    
+    ComputeWaves(WorldPos, WaveCount, displacement, normal);
+    
+    OutputTexture[DispatchThreadId.xy] = float4(displacement, 0);
+    OutputNormal[DispatchThreadId.xy] = normal;
+    
+    // Second waves
+    float2 secondUV = (DispatchThreadId.xy + 0.5) / (float) SecondTextureRes;
+    float2 secondWorldPos = (UV - 0.5) * SecondWorldSize;
+    
+    float3 secondDisplacement = float3(0, 0, 0);
+    float3 secondNormal = float3(0, 0, 1);
+    
+    ComputeWaves(secondWorldPos, SecondWaveCount, secondDisplacement, secondNormal);
+    
+    SecondOutputTexture[DispatchThreadId.xy] = float4(secondDisplacement, 0);
+    SecondOutputNormal[DispatchThreadId.xy] = secondNormal;
 }

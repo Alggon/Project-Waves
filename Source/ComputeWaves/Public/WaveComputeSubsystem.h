@@ -39,11 +39,22 @@ private :
 	UPROPERTY()
 	float CachedWorldSize = 1000.f;
 	UPROPERTY()
+	TObjectPtr<UTextureRenderTarget2D> SecondOutputRenderTarget = nullptr;
+	UPROPERTY()
+	TObjectPtr<UTextureRenderTarget2D> SecondOutputNormal = nullptr;
+	UPROPERTY()
+	int32 SecondCachedResolution = 256;
+	UPROPERTY()
+	float SecondCachedWorldSize = 1000.f;
+	UPROPERTY()
 	TArray<FWaveParams> Waves;
 	UPROPERTY()
 	float FoamThreshold = 0.5f;
 	UPROPERTY()
 	float FoamDecay = 0.8f;
+
+	UPROPERTY()
+	int32 SecondWaveCount = 4;
 
 	FThreadSafeBool bIsCurrentlyDispatching = false;
 

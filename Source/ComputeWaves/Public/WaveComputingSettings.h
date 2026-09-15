@@ -40,9 +40,10 @@ public:
 	FSoftObjectPath OutputRenderTarget = nullptr;
 	UPROPERTY(Config, EditAnywhere, Category = "Textures", meta = (AllowedClasses = "/Script/Engine.TextureRenderTarget2D"))
 	FSoftObjectPath OutputNormal = nullptr;
-	UPROPERTY(Config, EditAnywhere, Category = "Textures", meta = (AllowedClasses = "/Script/Engine.MaterialParameterCollection"))
-	FSoftObjectPath PostProcessCollection = nullptr;
-
+	UPROPERTY(Config, EditAnywhere, Category = "Textures", meta = (AllowedClasses = "/Script/Engine.TextureRenderTarget2D"))
+	FSoftObjectPath SecondOutputRenderTarget = nullptr;
+	UPROPERTY(Config, EditAnywhere, Category = "Textures", meta = (AllowedClasses = "/Script/Engine.TextureRenderTarget2D"))
+	FSoftObjectPath SecondOutputNormal = nullptr;
 	UPROPERTY(Config, EditAnywhere, Category = "Foam")
 	float FoamThreshold = 0.5f;
 	UPROPERTY(Config, EditAnywhere, Category = "Foam")
@@ -53,4 +54,11 @@ public:
 	int32 CachedResolution = 256;
 	UPROPERTY(Config, EditAnywhere, Category = "Sizes")
 	float CachedWorldSize = 1000.f;
+	UPROPERTY(Config, EditAnywhere, Category = "Sizes")
+	int32 SecondCachedResolution = 256;
+	UPROPERTY(Config, EditAnywhere, Category = "Sizes")
+	float SecondCachedWorldSize = 1000.f;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Sizes")
+	int32 SecondWaveCount = 4;
 };

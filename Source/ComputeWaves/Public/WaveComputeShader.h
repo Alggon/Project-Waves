@@ -24,9 +24,16 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, OutputNormal)
 		SHADER_PARAMETER(int32, WaveCount)
-		SHADER_PARAMETER(float, Time)
 		SHADER_PARAMETER(float, WorldSize)
 		SHADER_PARAMETER(int32, TextureRes)
+
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, SecondOutputTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, SecondOutputNormal)
+		SHADER_PARAMETER(int32, SecondWaveCount)
+		SHADER_PARAMETER(float, SecondWorldSize)
+		SHADER_PARAMETER(int32, SecondTextureRes)
+
+		SHADER_PARAMETER(float, Time)
 		SHADER_PARAMETER(float, DeltaTime)
 		SHADER_PARAMETER(float, FoamThreshold)
 		SHADER_PARAMETER(float, FoamDecay)
