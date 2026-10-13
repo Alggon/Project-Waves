@@ -1,2 +1,2 @@
 # Project-Waves
-A little project, playing a boat across an enormous ocean powered by compute shaders and Gerstner Waves.
+A little project simulating an ocean powered by compute shaders and Gerstner Waves algorithm.
